@@ -1,24 +1,23 @@
 {
   "name": "vadrox-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend do Vadrox — API de música, stream e chatbot",
+  "main": "server.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "tsx server.ts",
+    "dev": "tsx watch server.ts"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["vadrox", "music", "fastify", "yt-dlp"],
   "license": "ISC",
   "dependencies": {
     "@fastify/reply-from": "^12.6.5",
+    "@google/genai": "^2.24.0",
+    "dotenv": "^18.0.4",
     "fastify": "^5.12.5",
-    "meriyah": "^7.3.3",
-    "youtubei.js": "^18.1.0"
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
 }
