@@ -23,6 +23,7 @@ async function init() {
           '--cookies', '/tmp/cookies.txt',
           '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416',
           '--extractor-args', 'youtube:player_client=default,web_safari,tv',
+          '--remote-components', 'ejs:github', // A MARRETADA DO JS VEM AQUI!
           '--no-warnings',
           `https://music.youtube.com/watch?v=${id}`,
         ],
@@ -79,19 +80,18 @@ async function init() {
     if (!q) return reply.status(400).send({ error: 'q is required' });
 
     try {
+      // O COPY-PASTE FOI ARRUMADO AQUI. VOLTOU A SER PESQUISA!
       const { stdout } = await execFileAsync(
-  'yt-dlp',
-  [
-    '-g',
-    '-f', 'bestaudio[ext=m4a]',
-    '--cookies', '/tmp/cookies.txt',
-    '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416',
-    '--remote-components', 'ejs:github',
-    '--no-warnings',
-    `https://music.youtube.com/watch?v=${id}`,
-  ],
-  { timeout: 30000 },
-);
+        'yt-dlp',
+        [
+          `ytsearch20:${q}`,
+          '--cookies', '/tmp/cookies.txt',
+          '--dump-json',
+          '--flat-playlist',
+          '--no-warnings',
+        ],
+        { timeout: 30000, maxBuffer: 20 * 1024 * 1024 },
+      );
 
       const tracks = stdout
         .trim()
@@ -178,9 +178,7 @@ REGRAS CRÍTICAS:
 - Se for conversa normal, use "searchQuery": null.
 - NUNCA invente URLs.${
       context?.title
-        ? `\n\nContexto atual: o usuário está ouvindo "${context.title}" de ${
-            context.artist ?? 'desconhecido'
-          }${context.isPlaying ? ' (tocando agora)' : ''}.`
+        ? `\n\nContexto atual: o usuário está ouvindo "${context.title}" de ${             context.artist ?? 'desconhecido'           }${context.isPlaying ? ' (tocando agora)' : ''}.`
         : ''
     }`;
 
