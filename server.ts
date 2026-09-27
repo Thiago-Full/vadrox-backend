@@ -15,18 +15,21 @@ async function init() {
   await app.register(replyFrom);
 
   async function resolveAudioUrl(id: string): Promise<string | null> {
-    try {
-      const { stdout } = await execAsync(
-        `yt-dlp -g -f "bestaudio[ext=m4a]" "https://music.youtube.com/watch?v=${id}"`,
-        { timeout: 20000 },
-      );
-      const url = stdout.trim().split('\n').filter(Boolean)[0];
-      return url || null;
-    } catch (e: any) {
-      app.log.error('[YTDLP] erro stream:', e.message);
-      return null;
-    }
+  try {
+    const { stdout } = await execAsync(
+      `yt-dlp -g -f "bestaudio[ext=m4a]" --extractor-args "youtube:player_client=android,ios,web" --no-warnings "https://music.youtube.com/watch?v=${id}"`,
+      { timeout: 30000 },
+    );
+    const url = stdout.trim().split('\n').filter(Boolean)[0];
+    return url || null;
+  } catch (e: any) {
+    app.log.error('[YTDLP] erro stream - message:', e?.message);
+    app.log.error('[YTDLP] erro stream - stderr:', e?.stderr);
+    app.log.error('[YTDLP] erro stream - stdout:', e?.stdout);
+    app.log.error('[YTDLP] erro stream - code:', e?.code);
+    return null;
   }
+}
 
   async function searchTracks(query: string, limit = 3) {
     try {
