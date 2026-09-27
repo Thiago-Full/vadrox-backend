@@ -80,16 +80,18 @@ async function init() {
 
     try {
       const { stdout } = await execFileAsync(
-        'yt-dlp',
-        [
-          `ytsearch20:${q}`,
-          '--cookies', '/tmp/cookies.txt',
-          '--dump-json',
-          '--flat-playlist',
-          '--no-warnings',
-        ],
-        { timeout: 30000, maxBuffer: 20 * 1024 * 1024 },
-      );
+  'yt-dlp',
+  [
+    '-g',
+    '-f', 'bestaudio[ext=m4a]',
+    '--cookies', '/tmp/cookies.txt',
+    '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416',
+    '--remote-components', 'ejs:github',
+    '--no-warnings',
+    `https://music.youtube.com/watch?v=${id}`,
+  ],
+  { timeout: 30000 },
+);
 
       const tracks = stdout
         .trim()
