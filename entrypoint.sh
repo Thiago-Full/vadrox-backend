@@ -1,15 +1,13 @@
 #!/bin/sh
 set -e
 
-echo "🚀 Iniciando PO Token Provider..."
-node /app/node_modules/bgutil-ytdlp-pot-provider/server/build/main.js &
+echo "🚀 Iniciando PO Token Provider (porta 4416)..."
+cd /opt/bgutil-ytdlp-pot-provider/server
+node build/main.js --port 4416 &
 POT_PID=$!
-
-# Aguarda o provider subir
 sleep 5
+echo "✅ PO Token Provider rodando (PID $POT_PID)"
 
 echo "🚀 Iniciando servidor Vadrox..."
+cd /app
 npx tsx server.ts
-
-# Se o servidor morrer, mata o provider também
-kill $POT_PID 2>/dev/null || true

@@ -15,30 +15,24 @@ async function init() {
 
   async function resolveAudioUrl(id: string): Promise<string | null> {
     try {
-      // Em resolveAudioUrl
-const { stdout } = await execFileAsync(
-  'yt-dlp',
-  [
-    '-g',
-    '-f',
-    'bestaudio[ext=m4a]',
-    '--cookies', '/etc/secrets/cookies.txt',
-    '--extractor-args', 'youtube:player_client=default,mweb,tv_embedded;fetch_pot=always',
-    '--no-warnings',
-    `https://music.youtube.com/watch?v=${id}`,
-  ],
-  { timeout: 30000 },
-);
+      const { stdout } = await execFileAsync(
+        'yt-dlp',
+        [
+          '-g',
+          '-f', 'bestaudio[ext=m4a]',
+          '--cookies', '/etc/secrets/cookies.txt',
+          '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416',
+          '--no-warnings',
+          `https://music.youtube.com/watch?v=${id}`,
+        ],
+        { timeout: 30000 },
+      );
       const url = stdout.trim().split('\n').filter(Boolean)[0];
       return url || null;
     } catch (e: any) {
       console.error('=== YTDLP STREAM ERRO ===');
       console.error('String:', String(e));
-      console.error('Message:', e?.message);
-      console.error('Code:', e?.code);
-      console.error('Signal:', e?.signal);
       console.error('Stderr:', e?.stderr);
-      console.error('Stdout:', e?.stdout);
       console.error('========================');
       return null;
     }
@@ -50,6 +44,7 @@ const { stdout } = await execFileAsync(
         'yt-dlp',
         [
           `ytsearch${limit + 5}:${query}`,
+          '--cookies', '/etc/secrets/cookies.txt',
           '--dump-json',
           '--flat-playlist',
           '--no-warnings',
@@ -73,7 +68,6 @@ const { stdout } = await execFileAsync(
         });
     } catch (e: any) {
       console.error('=== SEARCH TRACKS ERRO ===');
-      console.error('Message:', e?.message);
       console.error('Stderr:', e?.stderr);
       console.error('==========================');
       return [];
@@ -85,20 +79,17 @@ const { stdout } = await execFileAsync(
     if (!q) return reply.status(400).send({ error: 'q is required' });
 
     try {
-      // Em server.ts, função resolveAudioUrl
-const { stdout } = await execFileAsync(
-  'yt-dlp',
-  [
-    '-g',
-    '-f',
-    'bestaudio[ext=m4a]',
-    '--extractor-args',
-    'youtube:player_client=tv_html5', // Força o cliente de TV
-    '--no-warnings',
-    `https://music.youtube.com/watch?v=${id}`,
-  ],
-  { timeout: 30000 },
-);
+      const { stdout } = await execFileAsync(
+        'yt-dlp',
+        [
+          `ytsearch20:${q}`,
+          '--cookies', '/etc/secrets/cookies.txt',
+          '--dump-json',
+          '--flat-playlist',
+          '--no-warnings',
+        ],
+        { timeout: 30000, maxBuffer: 20 * 1024 * 1024 },
+      );
 
       const tracks = stdout
         .trim()
@@ -118,7 +109,6 @@ const { stdout } = await execFileAsync(
       return { tracks };
     } catch (e: any) {
       console.error('=== SEARCH ERRO ===');
-      console.error('Message:', e?.message);
       console.error('Stderr:', e?.stderr);
       console.error('===================');
       return { tracks: [] };
