@@ -1,29 +1,15 @@
-FROM node:22-slim
+# Usa imagem oficial do yt-dlp com PO Token Provider
+FROM ghcr.io/jim60105/yt-dlp:pot
 
-# Instala Python + pip + ffmpeg (yt-dlp precisa)
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    python3-venv \
-    ffmpeg \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Instala Node.js 22
+RUN apk add --no-cache nodejs npm
 
-# Instala yt-dlp globalmente
-RUN pip3 install --break-system-packages --upgrade yt-dlp
-
+# Instala dependências do backend
 WORKDIR /app
-
-# Copia arquivos de dependência
 COPY package*.json ./
-
-# Instala dependências Node
 RUN npm install
 
-# Copia o restante do código
+# Copia código e inicia
 COPY . .
-
-# Render injeta PORT via env var
 EXPOSE 3000
-
 CMD ["npx", "tsx", "server.ts"]

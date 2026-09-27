@@ -15,19 +15,17 @@ async function init() {
 
   async function resolveAudioUrl(id: string): Promise<string | null> {
     try {
-      const { stdout } = await execFileAsync(
-        'yt-dlp',
-        [
-          '-g',
-          '-f',
-          'bestaudio[ext=m4a]',
-          '--extractor-args',
-          'youtube:player_client=android,ios,web',
-          '--no-warnings',
-          `https://music.youtube.com/watch?v=${id}`,
-        ],
-        { timeout: 30000 },
-      );
+      // Em resolveAudioUrl
+const { stdout } = await execFileAsync(
+  'yt-dlp',
+  [
+    '-g', '-f', 'bestaudio[ext=m4a]',
+    '--extractor-args', 'youtube:player_client=mweb',
+    '--no-warnings',
+    `https://music.youtube.com/watch?v=${id}`,
+  ],
+  { timeout: 30000 },
+);
       const url = stdout.trim().split('\n').filter(Boolean)[0];
       return url || null;
     } catch (e: any) {
