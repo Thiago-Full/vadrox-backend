@@ -1,12 +1,12 @@
 // server.ts
 import Fastify from 'fastify';
 import replyFrom from '@fastify/reply-from';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { GoogleGenAI } from '@google/genai';
 import 'dotenv/config';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+const execFileAsync = promisify(execFile);
 
-const execAsync = promisify(exec);
 const app = Fastify({ logger: true });
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
@@ -16,16 +16,25 @@ async function init() {
 
   async function resolveAudioUrl(id: string): Promise<string | null> {
   try {
-    const { stdout } = await execAsync(
-      `yt-dlp -g -f "bestaudio[ext=m4a]" --extractor-args "youtube:player_client=android,ios,web" --no-warnings "https://music.youtube.com/watch?v=${id}"`,
+    const { stdout } = await execFileAsync(
+      'yt-dlp',
+      [
+        '-g',
+        '-f',
+        'bestaudio[ext=m4a]',
+        '--extractor-args',
+        'youtube:player_client=android,ios,web',
+        '--no-warnings',
+        `https://music.youtube.com/watch?v=${id}`,
+      ],
       { timeout: 30000 },
     );
     const url = stdout.trim().split('\n').filter(Boolean)[0];
     return url || null;
   } catch (e: any) {
+    app.log.error('[YTDLP] erro stream - string:', String(e));
     app.log.error('[YTDLP] erro stream - message:', e?.message);
     app.log.error('[YTDLP] erro stream - stderr:', e?.stderr);
-    app.log.error('[YTDLP] erro stream - stdout:', e?.stdout);
     app.log.error('[YTDLP] erro stream - code:', e?.code);
     return null;
   }
@@ -33,10 +42,16 @@ async function init() {
 
   async function searchTracks(query: string, limit = 3) {
     try {
-      const { stdout } = await execAsync(
-        `yt-dlp "ytsearch${limit + 5}:${query}" --dump-json --flat-playlist --no-warnings`,
-        { timeout: 30000, maxBuffer: 20 * 1024 * 1024 },
-      );
+      const { stdout } = await execFileAsync(
+  'yt-dlp',
+  [
+    `ytsearch20:${q}`,
+    '--dump-json',
+    '--flat-playlist',
+    '--no-warnings',
+  ],
+  { timeout: 30000, maxBuffer: 20 * 1024 * 1024 },
+);
       return stdout
         .trim()
         .split('\n')
@@ -63,10 +78,16 @@ async function init() {
     if (!q) return reply.status(400).send({ error: 'q is required' });
 
     try {
-      const { stdout } = await execAsync(
-        `yt-dlp "ytsearch20:${q}" --dump-json --flat-playlist --no-warnings`,
-        { timeout: 30000, maxBuffer: 20 * 1024 * 1024 },
-      );
+      const { stdout } = await execFileAsync(
+  'yt-dlp',
+  [
+    `ytsearch${limit + 5}:${query}`,
+    '--dump-json',
+    '--flat-playlist',
+    '--no-warnings',
+  ],
+  { timeout: 30000, maxBuffer: 20 * 1024 * 1024 },
+);
 
       const tracks = stdout
         .trim()
