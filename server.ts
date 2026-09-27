@@ -19,8 +19,11 @@ async function init() {
 const { stdout } = await execFileAsync(
   'yt-dlp',
   [
-    '-g', '-f', 'bestaudio[ext=m4a]',
-    '--extractor-args', 'youtube:player_client=mweb',
+    '-g',
+    '-f',
+    'bestaudio[ext=m4a]',
+    '--cookies', '/etc/secrets/cookies.txt',
+    '--extractor-args', 'youtube:player_client=default,mweb,tv_embedded;fetch_pot=always',
     '--no-warnings',
     `https://music.youtube.com/watch?v=${id}`,
   ],

@@ -10,12 +10,13 @@
   "keywords": ["vadrox", "music", "fastify", "yt-dlp"],
   "license": "ISC",
   "dependencies": {
-    "@fastify/reply-from": "^12.6.5",
-    "@google/genai": "^2.24.0",
-    "dotenv": "^18.0.4",
-    "fastify": "^5.12.5",
-    "tsx": "^4.23.15"
-  },
+  "@fastify/reply-from": "^12.6.5",
+  "@google/genai": "^2.24.0",
+  "bgutil-ytdlp-pot-provider": "^1.2.2",
+  "dotenv": "^18.0.4",
+  "fastify": "^5.12.5",
+  "tsx": "^4.23.15"
+},
   "devDependencies": {
     "@types/node": "^26.6.2",
     "typescript": "^7.0.2"

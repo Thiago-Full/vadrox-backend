@@ -1,15 +1,24 @@
-# Usa imagem oficial do yt-dlp com PO Token Provider
-FROM ghcr.io/jim60105/yt-dlp:pot
+FROM node:22-slim
 
-# Instala Node.js 22
-RUN apk add --no-cache nodejs npm
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    ffmpeg \
+    curl \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
 
-# Instala dependências do backend
+RUN pip3 install --break-system-packages --upgrade yt-dlp
+
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
-
-# Copia código e inicia
 COPY . .
+
 EXPOSE 3000
-CMD ["npx", "tsx", "server.ts"]
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+CMD ["/entrypoint.sh"]
