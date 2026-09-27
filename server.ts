@@ -14,30 +14,29 @@ async function init() {
   await app.register(replyFrom);
 
   async function resolveAudioUrl(id: string): Promise<string | null> {
-  try {
-    const { stdout } = await execFileAsync(
-      'yt-dlp',
-      [
-        '-g',
-        '-f', 'bestaudio[ext=m4a]',
-        '--cookies', '/etc/secrets/cookies.txt',
-        '--no-write-cookies',
-        '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416',
-        '--extractor-args', 'youtube:player_client=default,web_safari,tv',
-        '--no-warnings',
-        `https://music.youtube.com/watch?v=${id}`,
-      ],
-      { timeout: 30000 },
-    );
-    const url = stdout.trim().split('\n').filter(Boolean)[0];
-    return url || null;
-  } catch (e: any) {
-    console.error('=== YTDLP STREAM ERRO ===');
-    console.error('Stderr:', e?.stderr);
-    console.error('========================');
-    return null;
+    try {
+      const { stdout } = await execFileAsync(
+        'yt-dlp',
+        [
+          '-g',
+          '-f', 'bestaudio[ext=m4a]',
+          '--cookies', '/tmp/cookies.txt',
+          '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416',
+          '--extractor-args', 'youtube:player_client=default,web_safari,tv',
+          '--no-warnings',
+          `https://music.youtube.com/watch?v=${id}`,
+        ],
+        { timeout: 30000 },
+      );
+      const url = stdout.trim().split('\n').filter(Boolean)[0];
+      return url || null;
+    } catch (e: any) {
+      console.error('=== YTDLP STREAM ERRO ===');
+      console.error('Stderr:', e?.stderr);
+      console.error('========================');
+      return null;
+    }
   }
-}
 
   async function searchTracks(query: string, limit = 3) {
     try {
@@ -45,7 +44,7 @@ async function init() {
         'yt-dlp',
         [
           `ytsearch${limit + 5}:${query}`,
-          '--cookies', '/etc/secrets/cookies.txt',
+          '--cookies', '/tmp/cookies.txt',
           '--dump-json',
           '--flat-playlist',
           '--no-warnings',
@@ -84,7 +83,7 @@ async function init() {
         'yt-dlp',
         [
           `ytsearch20:${q}`,
-          '--cookies', '/etc/secrets/cookies.txt',
+          '--cookies', '/tmp/cookies.txt',
           '--dump-json',
           '--flat-playlist',
           '--no-warnings',
