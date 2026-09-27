@@ -20,10 +20,9 @@ async function init() {
         [
           '-g',
           '-f', 'bestaudio[ext=m4a]',
-          '--cookies', '/tmp/cookies.txt',
           '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416',
           '--extractor-args', 'youtube:player_client=default,web_safari,tv',
-          '--remote-components', 'ejs:github', // A MARRETADA DO JS VEM AQUI!
+          '--remote-components', 'ejs:github', 
           '--no-warnings',
           `https://music.youtube.com/watch?v=${id}`,
         ],
@@ -45,7 +44,6 @@ async function init() {
         'yt-dlp',
         [
           `ytsearch${limit + 5}:${query}`,
-          '--cookies', '/tmp/cookies.txt',
           '--dump-json',
           '--flat-playlist',
           '--no-warnings',
@@ -80,12 +78,10 @@ async function init() {
     if (!q) return reply.status(400).send({ error: 'q is required' });
 
     try {
-      // O COPY-PASTE FOI ARRUMADO AQUI. VOLTOU A SER PESQUISA!
       const { stdout } = await execFileAsync(
         'yt-dlp',
         [
           `ytsearch20:${q}`,
-          '--cookies', '/tmp/cookies.txt',
           '--dump-json',
           '--flat-playlist',
           '--no-warnings',
@@ -124,8 +120,15 @@ async function init() {
     const url = await resolveAudioUrl(id);
     if (!url) return reply.status(403).send({ error: 'could not resolve' });
 
-    return reply.from(url);
+    // A marretada final: Redireciona o player pra mamar direto no servidor da Google
+    return reply.redirect(url);
   });
+
+app.get('/health', async () => ({
+  status: 'ok',
+  timestamp: Date.now(),
+}));
+
 
   app.get('/debug/ytdlp', async (req, reply) => {
     try {
@@ -149,6 +152,8 @@ async function init() {
       });
     }
   });
+
+  
 
   app.post('/chat/ask', async (req, reply) => {
     const body = req.body as {
