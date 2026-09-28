@@ -206,22 +206,41 @@ REGRAS CRÍTICAS:
     contents.push({ role: 'user', parts: [{ text: message }] });
 
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-flash-latest',
+      const response = await ai.models.generateContent// Dentro da rota /chat/ask, substitua o bloco try/catch do Gemini por este:
+
+try {
+  let response;
+  let lastError;
+  const maxRetries = 3;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash', // ou 'gemini-flash-latest'
         contents,
-        config: {
-          systemInstruction: systemPrompt,
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'object',
-            properties: {
-              reply: { type: 'string' },
-              searchQuery: { type: 'string', nullable: true },
-            },
-            required: ['reply'],
-          },
-        },
+        config: { /* ... */ },
       });
+      break; // sucesso, sai do loop
+    } catch (error: any) {
+      lastError = error;
+      // Se for erro 503 (sobrecarga), espera e tenta de novo
+      if (error?.status === 503 || error?.message?.includes('high demand')) {
+        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error; // outros erros, não faz retry
+    }
+  }
+
+  if (!response) throw lastError;
+
+  const rawText = response.text ?? '{}';
+  // ... resto do código
+} catch (e: any) {
+  console.error('[CHAT] erro após retries:', String(e));
+  return reply.status(500).send({ error: 'AI request failed after retries' });
+}
 
       const rawText = response.text ?? '{}';
       let parsed: { reply: string; searchQuery: string | null } = {
@@ -256,5 +275,14 @@ REGRAS CRÍTICAS:
     app.log.info(`Server running at ${address}`);
   });
 }
+
+// Self-ping para manter o Render acordado
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+
+setInterval(() => {
+  fetch(`${SELF_URL}/health`).catch(() => {
+    // ignora erros, o objetivo é só gerar tráfego
+  });
+}, 10 * 60 * 1000); // A cada 10 minutos
 
 init();
