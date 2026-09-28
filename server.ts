@@ -7,9 +7,13 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
-const app = Fastify({ 
-  logger: true,
-  exposeHeadRoutes: true // ✅ Adicione esta linha
+// Rota /health que responde a GET e HEAD
+app.route({
+  method: ['GET', 'HEAD'],
+  url: '/health',
+  handler: async (request, reply) => {
+    return { status: 'ok', timestamp: Date.now() };
+  }
 });
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
