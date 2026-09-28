@@ -7,7 +7,10 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
-const app = Fastify({ logger: true });
+const app = Fastify({ 
+  logger: true,
+  exposeHeadRoutes: true // ✅ Adicione esta linha
+});
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 async function init() {
