@@ -8,7 +8,53 @@ import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
 const app = Fastify({ logger: true });
+
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || '';
+const GROQ_KEY = process.env.GROQ_API_KEY || '';
+
+async function callOpenRouter(systemPrompt: string, messages: any[]) {
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENROUTER_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'meta-llama/llama-3.3-70b-instruct:free',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
+      response_format: { type: 'json_object' },
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
+async function callGroq(systemPrompt: string, messages: any[]) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GROQ_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
+      response_format: { type: 'json_object' },
+    }),
+  });
+  if (!res.ok) throw new Error(`Groq ${res.status}`);
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
 
 async function init() {
   await app.register(replyFrom);
@@ -73,7 +119,6 @@ async function init() {
     }
   }
 
-  // ─── HEALTH (GET + HEAD, pra UptimeRobot) ───
   app.route({
     method: ['GET', 'HEAD'],
     url: '/health',
@@ -179,38 +224,39 @@ Seja descontraído mas objetivo.
 REGRAS CRÍTICAS:
 - Se o usuário pedir músicas, artistas ou similares, preencha "searchQuery" com uma query de busca.
 - Se for conversa normal, use "searchQuery": null.
-- NUNCA invente URLs.${
-      context?.title
-        ? `\n\nContexto atual: o usuário está ouvindo "${context.title}" de ${context.artist ?? 'desconhecido'}${context.isPlaying ? ' (tocando agora)' : ''}.`
-        : ''
-    }`;
+- NUNCA invente URLs.
 
-    const contents: { role: string; parts: { text: string }[] }[] = [];
+IMPORTANTE: Retorne SEMPRE um JSON com formato: {"reply": "texto da resposta", "searchQuery": "query ou null"}${context?.title ? `\n\nContexto atual: o usuário está ouvindo "${context.title}" de ${context.artist ?? 'desconhecido'}${context.isPlaying ? ' (tocando agora)' : ''}.` : ''}`;
 
+    // Monta as mensagens no formato OpenAI
+    const oaiMessages: any[] = [];
     for (const msg of history.slice(-10)) {
-      contents.push({
+      oaiMessages.push({
+        role: msg.from === 'user' ? 'user' : 'assistant',
+        content: msg.text,
+      });
+    }
+    oaiMessages.push({ role: 'user', content: message });
+
+    // Formato Gemini
+    const geminiContents: { role: string; parts: { text: string }[] }[] = [];
+    for (const msg of history.slice(-10)) {
+      geminiContents.push({
         role: msg.from === 'user' ? 'user' : 'model',
         parts: [{ text: msg.text }],
       });
     }
+    geminiContents.push({ role: 'user', parts: [{ text: message }] });
 
-    contents.push({ role: 'user', parts: [{ text: message }] });
+    let rawText: string | null = null;
 
-    // ─── FALLBACK ENTRE MODELOS ───
-    const MODELS = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-flash-latest',
-    ];
-
-    let response: any = null;
-    let lastError: any = null;
-
-    for (const modelName of MODELS) {
+    // ─── TENTATIVA 1: GEMINI ───
+    const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+    for (const modelName of GEMINI_MODELS) {
       try {
-        response = await ai.models.generateContent({
+        const response = await ai.models.generateContent({
           model: modelName,
-          contents,
+          contents: geminiContents,
           config: {
             systemInstruction: systemPrompt,
             responseMimeType: 'application/json',
@@ -224,22 +270,40 @@ REGRAS CRÍTICAS:
             },
           },
         });
-        console.log(`[CHAT] modelo OK: ${modelName}`);
+        rawText = response.text ?? null;
+        console.log(`[CHAT] Gemini OK: ${modelName}`);
         break;
       } catch (err: any) {
-        lastError = err;
-        console.log(`[CHAT] modelo ${modelName} falhou, tentando próximo...`);
-        continue;
+        console.log(`[CHAT] Gemini ${modelName} falhou`);
       }
     }
 
-    if (!response) {
-      console.error('[CHAT] todos os modelos falharam:', String(lastError));
-      return reply.status(500).send({ error: 'AI request failed' });
+    // ─── TENTATIVA 2: OPENROUTER ───
+    if (!rawText && OPENROUTER_KEY) {
+      try {
+        rawText = await callOpenRouter(systemPrompt, oaiMessages);
+        console.log('[CHAT] OpenRouter OK');
+      } catch (err: any) {
+        console.log('[CHAT] OpenRouter falhou:', err.message);
+      }
+    }
+
+    // ─── TENTATIVA 3: GROQ ───
+    if (!rawText && GROQ_KEY) {
+      try {
+        rawText = await callGroq(systemPrompt, oaiMessages);
+        console.log('[CHAT] Groq OK');
+      } catch (err: any) {
+        console.log('[CHAT] Groq falhou:', err.message);
+      }
+    }
+
+    if (!rawText) {
+      console.error('[CHAT] todos os provedores falharam');
+      return reply.status(500).send({ error: 'All providers failed' });
     }
 
     try {
-      const rawText = response.text ?? '{}';
       let parsed: { reply: string; searchQuery: string | null } = {
         reply: '',
         searchQuery: null,
@@ -263,7 +327,6 @@ REGRAS CRÍTICAS:
     }
   });
 
-  // ─── Inicia o servidor ───
   const PORT = Number(process.env.PORT) || 3000;
   app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
     if (err) {
@@ -272,7 +335,6 @@ REGRAS CRÍTICAS:
     }
     app.log.info(`Server running at ${address}`);
 
-    // ─── Self-ping (mantém o Render acordado) ───
     const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
     setInterval(() => {
       fetch(`${SELF_URL}/health`).catch(() => {});
