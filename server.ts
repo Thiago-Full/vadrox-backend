@@ -200,7 +200,7 @@ REGRAS CRÍTICAS:
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',,
+        model: 'gemini-flash-latest',
         contents,
         config: {
           systemInstruction: systemPrompt,
