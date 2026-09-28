@@ -7,14 +7,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
-// Rota /health que responde a GET e HEAD
-app.route({
-  method: ['GET', 'HEAD'],
-  url: '/health',
-  handler: async (request, reply) => {
-    return { status: 'ok', timestamp: Date.now() };
-  }
-});
+const app = Fastify({ logger: true });
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 async function init() {
@@ -29,7 +22,7 @@ async function init() {
           '-f', 'bestaudio[ext=m4a]',
           '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416',
           '--extractor-args', 'youtube:player_client=default,web_safari,tv',
-          '--remote-components', 'ejs:github', 
+          '--remote-components', 'ejs:github',
           '--no-warnings',
           `https://music.youtube.com/watch?v=${id}`,
         ],
@@ -80,6 +73,13 @@ async function init() {
     }
   }
 
+  // ─── HEALTH (GET + HEAD, pra UptimeRobot) ───
+  app.route({
+    method: ['GET', 'HEAD'],
+    url: '/health',
+    handler: async () => ({ status: 'ok', timestamp: Date.now() }),
+  });
+
   app.get('/search', async (req, reply) => {
     const { q } = req.query as { q?: string };
     if (!q) return reply.status(400).send({ error: 'q is required' });
@@ -127,15 +127,8 @@ async function init() {
     const url = await resolveAudioUrl(id);
     if (!url) return reply.status(403).send({ error: 'could not resolve' });
 
-    // A marretada final: Redireciona o player pra mamar direto no servidor da Google
     return reply.redirect(url);
   });
-
-app.get('/health', async () => ({
-  status: 'ok',
-  timestamp: Date.now(),
-}));
-
 
   app.get('/debug/ytdlp', async (req, reply) => {
     try {
@@ -159,8 +152,6 @@ app.get('/health', async () => ({
       });
     }
   });
-
-  
 
   app.post('/chat/ask', async (req, reply) => {
     const body = req.body as {
@@ -190,7 +181,7 @@ REGRAS CRÍTICAS:
 - Se for conversa normal, use "searchQuery": null.
 - NUNCA invente URLs.${
       context?.title
-        ? `\n\nContexto atual: o usuário está ouvindo "${context.title}" de ${             context.artist ?? 'desconhecido'           }${context.isPlaying ? ' (tocando agora)' : ''}.`
+        ? `\n\nContexto atual: o usuário está ouvindo "${context.title}" de ${context.artist ?? 'desconhecido'}${context.isPlaying ? ' (tocando agora)' : ''}.`
         : ''
     }`;
 
@@ -206,41 +197,22 @@ REGRAS CRÍTICAS:
     contents.push({ role: 'user', parts: [{ text: message }] });
 
     try {
-      const response = await ai.models.generateContent// Dentro da rota /chat/ask, substitua o bloco try/catch do Gemini por este:
-
-try {
-  let response;
-  let lastError;
-  const maxRetries = 3;
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash', // ou 'gemini-flash-latest'
+      const response = await ai.models.generateContent({
+        model: 'gemini-flash-latest',
         contents,
-        config: { /* ... */ },
+        config: {
+          systemInstruction: systemPrompt,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'object',
+            properties: {
+              reply: { type: 'string' },
+              searchQuery: { type: 'string', nullable: true },
+            },
+            required: ['reply'],
+          },
+        },
       });
-      break; // sucesso, sai do loop
-    } catch (error: any) {
-      lastError = error;
-      // Se for erro 503 (sobrecarga), espera e tenta de novo
-      if (error?.status === 503 || error?.message?.includes('high demand')) {
-        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        continue;
-      }
-      throw error; // outros erros, não faz retry
-    }
-  }
-
-  if (!response) throw lastError;
-
-  const rawText = response.text ?? '{}';
-  // ... resto do código
-} catch (e: any) {
-  console.error('[CHAT] erro após retries:', String(e));
-  return reply.status(500).send({ error: 'AI request failed after retries' });
-}
 
       const rawText = response.text ?? '{}';
       let parsed: { reply: string; searchQuery: string | null } = {
@@ -266,6 +238,7 @@ try {
     }
   });
 
+  // ─── Inicia o servidor ───
   const PORT = Number(process.env.PORT) || 3000;
   app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
     if (err) {
@@ -273,16 +246,13 @@ try {
       process.exit(1);
     }
     app.log.info(`Server running at ${address}`);
+
+    // ─── Self-ping (mantém o Render acordado) ───
+    const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    setInterval(() => {
+      fetch(`${SELF_URL}/health`).catch(() => {});
+    }, 10 * 60 * 1000);
   });
 }
-
-// Self-ping para manter o Render acordado
-const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-
-setInterval(() => {
-  fetch(`${SELF_URL}/health`).catch(() => {
-    // ignora erros, o objetivo é só gerar tráfego
-  });
-}, 10 * 60 * 1000); // A cada 10 minutos
 
 init();
