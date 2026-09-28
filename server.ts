@@ -196,24 +196,49 @@ REGRAS CRÍTICAS:
 
     contents.push({ role: 'user', parts: [{ text: message }] });
 
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-flash-latest',
-        contents,
-        config: {
-          systemInstruction: systemPrompt,
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'object',
-            properties: {
-              reply: { type: 'string' },
-              searchQuery: { type: 'string', nullable: true },
-            },
-            required: ['reply'],
-          },
-        },
-      });
+    // ─── FALLBACK ENTRE MODELOS ───
+    const MODELS = [
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-flash-latest',
+    ];
 
+    let response: any = null;
+    let lastError: any = null;
+
+    for (const modelName of MODELS) {
+      try {
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents,
+          config: {
+            systemInstruction: systemPrompt,
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: 'object',
+              properties: {
+                reply: { type: 'string' },
+                searchQuery: { type: 'string', nullable: true },
+              },
+              required: ['reply'],
+            },
+          },
+        });
+        console.log(`[CHAT] modelo OK: ${modelName}`);
+        break;
+      } catch (err: any) {
+        lastError = err;
+        console.log(`[CHAT] modelo ${modelName} falhou, tentando próximo...`);
+        continue;
+      }
+    }
+
+    if (!response) {
+      console.error('[CHAT] todos os modelos falharam:', String(lastError));
+      return reply.status(500).send({ error: 'AI request failed' });
+    }
+
+    try {
       const rawText = response.text ?? '{}';
       let parsed: { reply: string; searchQuery: string | null } = {
         reply: '',
@@ -233,8 +258,8 @@ REGRAS CRÍTICAS:
 
       return { reply: parsed.reply || 'Tô sem ideia, tenta reformular?', tracks };
     } catch (e: any) {
-      console.error('[CHAT] erro:', String(e));
-      return reply.status(500).send({ error: 'AI request failed' });
+      console.error('[CHAT] erro ao processar resposta:', String(e));
+      return reply.status(500).send({ error: 'AI response processing failed' });
     }
   });
 
