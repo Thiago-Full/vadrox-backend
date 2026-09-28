@@ -296,31 +296,38 @@ ${context?.title ? `\n\nCONTEXTO ATUAL: o usuário está ouvindo "${context.titl
 
     let rawText: string | null = null;
 
-    // ─── TENTATIVA 1: GEMINI ───
-    const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+       // ─── TENTATIVA 1: GEMINI (com timeout de 5s por modelo) ───
+    const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash'];
     for (const modelName of GEMINI_MODELS) {
       try {
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: geminiContents,
-          config: {
-            systemInstruction: systemPrompt,
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: 'object',
-              properties: {
-                reply: { type: 'string' },
-                searchQuery: { type: 'string', nullable: true },
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 5000),
+        );
+
+        const response: any = await Promise.race([
+          ai.models.generateContent({
+            model: modelName,
+            contents: geminiContents,
+            config: {
+              systemInstruction: systemPrompt,
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'object',
+                properties: {
+                  reply: { type: 'string' },
+                  searchQuery: { type: 'string', nullable: true },
+                },
+                required: ['reply'],
               },
-              required: ['reply'],
             },
-          },
-        });
+          }),
+          timeoutPromise,
+        ]);
         rawText = response.text ?? null;
         console.log(`[CHAT] Gemini OK: ${modelName}`);
         break;
       } catch (err: any) {
-        console.log(`[CHAT] Gemini ${modelName} falhou`);
+        console.log(`[CHAT] Gemini ${modelName} falhou (${err.message})`);
       }
     }
 
