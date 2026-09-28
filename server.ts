@@ -297,7 +297,7 @@ ${context?.title ? `\n\nCONTEXTO ATUAL: o usuário está ouvindo "${context.titl
     let rawText: string | null = null;
 
        // ─── TENTATIVA 1: GEMINI (com timeout de 5s por modelo) ───
-    const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'];
     for (const modelName of GEMINI_MODELS) {
       try {
         const timeoutPromise = new Promise((_, reject) =>
