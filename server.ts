@@ -22,7 +22,11 @@ async function callOpenRouter(systemPrompt: string, messages: any[]) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'meta-llama/llama-3.3-70b-instruct:free',
+      // Antes:
+// model: 'meta-llama/llama-3.3-70b-instruct:free',
+
+// Depois (use um modelo :free que ainda existe):
+model: 'nvidia/nemotron-3-super-120b-a12b:free',
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages,
@@ -43,7 +47,11 @@ async function callGroq(systemPrompt: string, messages: any[]) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      // Antes:
+// model: 'llama-3.3-70b-versatile',
+
+// Depois (use o substituto oficial):
+model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages,
