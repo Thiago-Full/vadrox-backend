@@ -192,6 +192,68 @@ async function init() {
     return reply.redirect(url);
   });
 
+    app.post('/recommendations', async (req, reply) => {
+    const { artists = [], history = [] } = req.body as {
+      artists?: string[];
+      history?: string[];
+    };
+
+    // Se tem artistas, usa eles. Senão, genérico.
+    const queries =
+      artists.length > 0
+        ? artists.slice(0, 3)
+        : ['top hits 2024', 'chill vibes mix', 'lo-fi hip hop'];
+
+    console.log('[RECS] buscando pra:', queries);
+
+    const allTracks: any[] = [];
+    for (const q of queries) {
+      try {
+        const { stdout } = await execFileAsync(
+          'yt-dlp',
+          [
+            `ytsearch5:${q}`,
+            '--dump-json',
+            '--flat-playlist',
+            '--no-warnings',
+          ],
+          { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
+        );
+        const tracks = stdout
+          .trim()
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => {
+            const d = JSON.parse(line);
+            return {
+              id: d.id,
+              title: d.title,
+              artist: d.uploader ?? d.channel ?? 'Unknown',
+              artwork: d.thumbnails?.[0]?.url ?? null,
+              duration: d.duration ?? 0,
+            };
+          });
+        allTracks.push(...tracks);
+      } catch (e: any) {
+        console.error('[RECS] erro na query', q, ':', e?.message);
+      }
+    }
+
+    // Dedupe por ID
+    const seen = new Set<string>();
+    const unique = allTracks.filter((t) => {
+      if (seen.has(t.id)) return false;
+      seen.add(t.id);
+      return true;
+    });
+
+    // Embaralha e pega 8
+    const shuffled = unique.sort(() => Math.random() - 0.5).slice(0, 8);
+
+    console.log('[RECS] retornando', shuffled.length, 'faixas');
+    return { tracks: shuffled };
+  });
+
   app.get('/debug/ytdlp', async (req, reply) => {
     try {
       const { stdout: version } = await execFileAsync('yt-dlp', ['--version'], { timeout: 10000 });
