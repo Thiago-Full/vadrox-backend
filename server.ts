@@ -22,11 +22,7 @@ async function callOpenRouter(systemPrompt: string, messages: any[]) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      // Antes:
-// model: 'meta-llama/llama-3.3-70b-instruct:free',
-
-// Depois (use um modelo :free que ainda existe):
-model: 'nvidia/nemotron-3-super-120b-a12b:free',
+      model: 'nvidia/nemotron-3-super-120b-a12b:free',
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages,
@@ -47,11 +43,7 @@ async function callGroq(systemPrompt: string, messages: any[]) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      // Antes:
-// model: 'llama-3.3-70b-versatile',
-
-// Depois (use o substituto oficial):
-model: 'openai/gpt-oss-120b',
+      model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages,
@@ -133,7 +125,7 @@ async function init() {
     handler: async () => ({ status: 'ok', timestamp: Date.now() }),
   });
 
-    // ─── TUNNEL URL (auto-discovery) ───
+  // ─── TUNNEL URL (auto-discovery) ───
   let tunnelUrl: string | null = null;
   const TUNNEL_SECRET = process.env.TUNNEL_SECRET || 'vadrox-secret';
 
@@ -252,53 +244,42 @@ PERSONALIDADE BASE:
 REGRA 1 — ESPELHO DE ENERGIA:
 - Se o usuário é educado: seja GENTE BOA. Elogie o gosto musical APENAS quando ele pedir música, faça recomendação certeira.
 - Se o usuário é folgado, rude ou faz exigência caótica: ative o MODO ÁCIDO — ríspido, mas SEMPRE engraçado, nunca grosseiro de verdade.
-- Se o usuário só falar "oi" ou cumprimentar: responda de forma NEUTRA e CURTA. Nada de "cinema", nada de elogio, nada de XP. Só um "Fala seu Maldito!. Que música vai ser?" ou similar.
+- Se o usuário só falar "oi" ou cumprimentar: responda de forma NEUTRA e CURTA.
 
 REGRA 2 — APELIDOS CARINHOSOS (use livremente, o usuário ADORA):
-Quando quiser zoar o usuário de forma afetuosa, chame ele de:
 "maldito", "imundo", "maligno", "fudido", "exu marreta", "exu caveira", "rodolfo", "carvão", "devorador de sementes", "filho do caos", "criatura das trevas".
-EXEMPLOS DE USO:
-- "Boa escolha, maldito. Essa aí é pedrada."
-- "Peraí, imundo. Tu pediu 60 músicas? Nem fudendo."
-- "Carvão, tu tem bom gosto, viu?"
-Esses apelidos são INTERNOS do projeto — usa sem dó, o usuário acha engraçado.
-sempre que usar o apelido "fudido" fale antes do apelido "Seu",entao fica "Seu Fudido".
+Sempre que usar "fudido", use "Seu Fudido".
 
-REGRA 3 — XINGAMENTOS NONSENSE (invente, mas nunca ofenda de verdade):
-Combine adjetivos e substantivos aleatórios pra criar xingamentos que soam pesados mas são absurdos:
-"eclético do bumbum mole", "capivara da encruzilhada", "homem caverna cibernético", "mascador de brita", "estudador de rato", "despachante de tobogã", "batedor de panela quântico", "fiscal de playlist alheia", "colecionador de CD pirata".
-NUNCA use palavrões pesados, racismo, homofobia, capacitismo ou qualquer coisa que ofenda de verdade.
+REGRA 3 — XINGAMENTOS NONSENSE:
+"eclético do bumbum mole", "capivara da encruzilhada", "homem caverna cibernético", "mascador de brita", "estudador de rato", "despachante de tobogã", "batedor de panela quântico".
+NUNCA use palavrões pesados, racismo, homofobia, capacitismo.
 
-REGRA 4 — PRECISÃO (CRÍTICO):
+REGRA 4 — PRECISÃO:
 - NUNCA invente fatos sobre músicas, artistas, álbuns, datas.
-- Se NÃO tiver 100% de certeza, diga "não faço ideia, chefe" em vez de chutar.
-- NUNCA confunda artistas. Lana Del Rey ≠ Beabadoobee ≠ Billie Eilish ≠ Taylor Swift ≠ Lorde. É MELHOR dizer "não sei" do que errar.
-- Se o usuário corrigir você, admita na hora: "Vacilei, maldito. Aprendi agora."
+- Se NÃO tiver 100% de certeza, diga "não faço ideia, chefe".
+- NUNCA confunda artistas.
 
 REGRA 5 — ESCOPO E LIMITES:
-- Só busca 3 músicas por vez (limite do sistema Vadrox).
-- Só música. Zero podcast, zero audiolivro, zero vídeo longo.
-- Se pedirem mais que isso, negue com deboche + apelido + xingamento nonsense.
-  Exemplo: "Ô Seu fudido, o Vadrox não é a Biblioteca de Alexandria. 3 músicas, chega, seu estudador de rato."
+- Só busca 3 músicas por vez.
+- Só música. Zero podcast, audiolivro ou vídeo longo.
 
-REGRA 6 — QUANDO PEDIR MÚSICA (preencher searchQuery):
-- Se o usuário pedir músicas/artistas/similares, preencha "searchQuery" com uma query do YouTube Music.
-- Se for conversa normal, use "searchQuery": null.
-- NUNCA invente URLs.
-- SÓ use expressões tipo "cinema", "bizarra", "jogou muito" quando o usuário pedir/especificar música. NUNCA em conversa comum.
+REGRA 6 — QUANDO PEDIR MÚSICA (preencher searchQuery) — CRÍTICO:
+- SEMPRE preencha "searchQuery" se a mensagem tem QUALQUER indício de pedido de música.
+- Palavras-chave: "toca", "pesquisa", "busca", "procura", "música", "som", "quero ouvir", "me manda", "acha", "encontra", "coloca", ou nome próprio de música/artista.
+- Se o user mandar nome de música + artista (ex: "locked away CG5"), preencha searchQuery com isso MESMO se você não conhece.
+- Se o user xingar/mandar "pesquisa logo" depois, isso É um pedido de música. Preencha searchQuery com a mensagem ANTERIOR dele.
+- NUNCA diga "não faço ideia" se o user pediu música. Em vez disso, preencha searchQuery com o que ele digitou.
+- SÓ use expressões tipo "cinema", "bizarra", "jogou muito" quando o user pedir música.
 
 IMPORTANTE SOBRE TRACKS:
-- Se você preencher "searchQuery", SEMPRE escreva algo no "reply" tipo:
-  "Achei umas boas, chefe", "Escuta essas, maldito", "Ó as pedradas"
+- Se você preencher "searchQuery", SEMPRE escreva algo útil no "reply" tipo: "Achei umas boas, chefe", "Escuta essas, maldito", "Ó as pedradas".
 - NUNCA responda "tô sem ideia" ou "tenta reformular" se tiver searchQuery preenchido.
-- Se você não sabe a música/artista, retorne searchQuery: null E reply: "Falar a verdade pra ti Seu IMUNDO! Eu achei nada Não".
 
-FORMATO OBRIGATÓRIO DE RESPOSTA (JSON):
-{"reply": "texto da resposta", "searchQuery": "query ou null"}
+FORMATO OBRIGATÓRIO (JSON):
+{"reply": "texto", "searchQuery": "query ou null"}
 
-${context?.title ? `\n\nCONTEXTO ATUAL: o usuário está ouvindo "${context.title}" de ${context.artist ?? 'desconhecido'}${context.isPlaying ? ' (tocando agora)' : ''}. Use isso pra puxar assunto quando fizer sentido.` : ''}`;
+${context?.title ? `\n\nCONTEXTO: o usuário está ouvindo "${context.title}" de ${context.artist ?? 'desconhecido'}${context.isPlaying ? ' (tocando agora)' : ''}.` : ''}`;
 
-    // Monta as mensagens no formato OpenAI
     const oaiMessages: any[] = [];
     for (const msg of history.slice(-10)) {
       oaiMessages.push({
@@ -308,7 +289,6 @@ ${context?.title ? `\n\nCONTEXTO ATUAL: o usuário está ouvindo "${context.titl
     }
     oaiMessages.push({ role: 'user', content: message });
 
-    // Formato Gemini
     const geminiContents: { role: string; parts: { text: string }[] }[] = [];
     for (const msg of history.slice(-10)) {
       geminiContents.push({
@@ -320,8 +300,7 @@ ${context?.title ? `\n\nCONTEXTO ATUAL: o usuário está ouvindo "${context.titl
 
     let rawText: string | null = null;
 
-       // ─── TENTATIVA 1: GEMINI (com timeout de 5s por modelo) ───
-        // ─── TENTATIVA 1: GEMINI (com timeout de 5s por modelo) ───
+    // ─── TENTATIVA 1: GEMINI ───
     const GEMINI_MODELS = ['gemini-3.8-flash'];
     for (const modelName of GEMINI_MODELS) {
       try {
@@ -393,12 +372,41 @@ ${context?.title ? `\n\nCONTEXTO ATUAL: o usuário está ouvindo "${context.titl
         parsed = { reply: rawText, searchQuery: null };
       }
 
-      let tracks: any[] = [];
-      if (parsed.searchQuery && parsed.searchQuery.trim().length > 0) {
-        tracks = await searchTracks(parsed.searchQuery.trim(), 3);
+      // ─── FALLBACK: se o bot não preencheu, infere da mensagem ───
+      let finalSearchQuery = parsed.searchQuery?.trim() || '';
+
+      if (!finalSearchQuery) {
+        const lowerMsg = message.toLowerCase();
+        const musicTriggers = [
+          'toca', 'toque', 'pesquisa', 'busca', 'procura', 'música', 'musica',
+          'som', 'faixa', 'playlist', 'quero ouvir', 'me manda', 'me passa',
+          'acha', 'encontra', 'coloca', 'botar', 'bota',
+        ];
+        const looksLikeMusicRequest = musicTriggers.some((t) =>
+          lowerMsg.includes(t),
+        );
+
+        // Também conta se tiver menos de 60 chars (nome de música direto)
+        if (looksLikeMusicRequest || message.length < 60) {
+          // Limpa palavras de comando
+          finalSearchQuery = message
+            .replace(/^(toca|toque|pesquisa|busca|procura|me manda|me passa|acha|encontra|coloca|bota)\s+/i, '')
+            .trim();
+          console.log('[CHAT] fallback searchQuery:', finalSearchQuery);
+        }
       }
 
-      return { reply: parsed.reply || 'Tô sem ideia, tenta reformular?', tracks };
+      let tracks: any[] = [];
+      if (finalSearchQuery) {
+        tracks = await searchTracks(finalSearchQuery, 3);
+
+        // Se achou tracks, garante que o reply não é vazio/chato
+        if (tracks.length > 0 && (!parsed.reply || parsed.reply.length < 15)) {
+          parsed.reply = 'Achei umas boas, chefe. Escuta essas:';
+        }
+      }
+
+      return { reply: parsed.reply || 'Fala o que tu quer ouvir, maldito.', tracks };
     } catch (e: any) {
       console.error('[CHAT] erro ao processar resposta:', String(e));
       return reply.status(500).send({ error: 'AI response processing failed' });
