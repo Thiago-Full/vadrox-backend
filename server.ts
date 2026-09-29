@@ -192,27 +192,76 @@ async function init() {
     return reply.redirect(url);
   });
 
-    app.post('/recommendations', async (req, reply) => {
-    const { artists = [], history = [] } = req.body as {
+        // ─── IA: infere artistas similares ───
+  async function inferSimilarArtists(artists: string[]): Promise<string[]> {
+    if (artists.length === 0) return [];
+
+    const prompt = `Você é um curador musical experiente. Dado os artistas abaixo, retorne 3 artistas SIMILARES (mesmo gênero, movimento, vibe sonora), EXCLUINDO os próprios listados.
+
+Artistas: ${artists.join(', ')}
+
+Retorne APENAS JSON puro no formato:
+{"similar": ["Artista 1", "Artista 2", "Artista 3"]}
+
+Se não conhecer algum, use seu melhor julgamento pra achar do mesmo gênero.`;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: { responseMimeType: 'application/json' },
+      });
+      const text = response.text ?? '{}';
+      const parsed = JSON.parse(text);
+      const similar = Array.isArray(parsed.similar) ? parsed.similar : [];
+      console.log('[RECS] IA sugeriu similares:', similar);
+      return similar.slice(0, 3);
+    } catch (e: any) {
+      console.log('[RECS] IA falhou:', e?.message);
+      return [];
+    }
+  }
+
+  app.post('/recommendations', async (req, reply) => {
+    const { artists = [], genres = [] } = req.body as {
       artists?: string[];
-      history?: string[];
+      genres?: string[];
     };
 
-    // Se tem artistas, usa eles. Senão, genérico.
-    const queries =
-      artists.length > 0
-        ? artists.slice(0, 3)
-        : ['top hits 2024', 'chill vibes mix', 'lo-fi hip hop'];
+    // ─── 1. IA descobre artistas similares ───
+    const similarArtists = await inferSimilarArtists(artists);
 
-    console.log('[RECS] buscando pra:', queries);
+    // ─── 2. Monta queries ───
+    const queries: string[] = [];
 
+    // 2 do próprio user (pra manter familiaridade)
+    if (artists.length > 0) {
+      queries.push(...artists.slice(0, 1));
+    }
+
+    // 3 similares (o pulo do gato — músicas NOVAS)
+    queries.push(...similarArtists.slice(0, 3));
+
+    // 1 gênero se tiver busca recente
+    if (genres.length > 0) {
+      queries.push(genres[0]);
+    }
+
+    // Fallback genérico se ficou vazio
+    if (queries.length === 0) {
+      queries.push('top hits 2026', 'lo-fi hip hop', 'chill vibes');
+    }
+
+    console.log('[RECS] queries finais:', queries);
+
+    // ─── 3. Busca cada query ───
     const allTracks: any[] = [];
     for (const q of queries) {
       try {
         const { stdout } = await execFileAsync(
           'yt-dlp',
           [
-            `ytsearch5:${q}`,
+            `ytsearch4:${q}`,
             '--dump-json',
             '--flat-playlist',
             '--no-warnings',
@@ -239,7 +288,7 @@ async function init() {
       }
     }
 
-    // Dedupe por ID
+    // ─── 4. Dedupe por ID ───
     const seen = new Set<string>();
     const unique = allTracks.filter((t) => {
       if (seen.has(t.id)) return false;
@@ -247,8 +296,8 @@ async function init() {
       return true;
     });
 
-    // Embaralha e pega 8
-    const shuffled = unique.sort(() => Math.random() - 0.5).slice(0, 8);
+    // ─── 5. Embaralha e pega 10 ───
+    const shuffled = unique.sort(() => Math.random() - 0.5).slice(0, 10);
 
     console.log('[RECS] retornando', shuffled.length, 'faixas');
     return { tracks: shuffled };
