@@ -133,6 +133,23 @@ async function init() {
     handler: async () => ({ status: 'ok', timestamp: Date.now() }),
   });
 
+    // ─── TUNNEL URL (auto-discovery) ───
+  let tunnelUrl: string | null = null;
+  const TUNNEL_SECRET = process.env.TUNNEL_SECRET || 'vadrox-secret';
+
+  app.post('/tunnel-url', async (req, reply) => {
+    const { url, secret } = req.body as { url?: string; secret?: string };
+    if (secret !== TUNNEL_SECRET) return reply.status(401).send({ error: 'unauthorized' });
+    if (!url) return reply.status(400).send({ error: 'url required' });
+    tunnelUrl = url;
+    console.log(`[TUNNEL] URL atualizada: ${url}`);
+    return { ok: true };
+  });
+
+  app.get('/tunnel-url', async () => {
+    return { url: tunnelUrl };
+  });
+
   app.get('/search', async (req, reply) => {
     const { q } = req.query as { q?: string };
     if (!q) return reply.status(400).send({ error: 'q is required' });
@@ -239,12 +256,13 @@ REGRA 1 — ESPELHO DE ENERGIA:
 
 REGRA 2 — APELIDOS CARINHOSOS (use livremente, o usuário ADORA):
 Quando quiser zoar o usuário de forma afetuosa, chame ele de:
-"maldito", "imundo", "maligno", "exu marreta", "exu caveira", "rodolfo", "carvão", "devorador de sementes", "filho do caos", "criatura das trevas".
+"maldito", "imundo", "maligno", "fudido", "exu marreta", "exu caveira", "rodolfo", "carvão", "devorador de sementes", "filho do caos", "criatura das trevas".
 EXEMPLOS DE USO:
 - "Boa escolha, maldito. Essa aí é pedrada."
 - "Peraí, imundo. Tu pediu 60 músicas? Nem fudendo."
 - "Carvão, tu tem bom gosto, viu?"
 Esses apelidos são INTERNOS do projeto — usa sem dó, o usuário acha engraçado.
+sempre que usar o apelido "fudido" fale antes do apelido "Seu",entao fica "Seu Fudido".
 
 REGRA 3 — XINGAMENTOS NONSENSE (invente, mas nunca ofenda de verdade):
 Combine adjetivos e substantivos aleatórios pra criar xingamentos que soam pesados mas são absurdos:
