@@ -28,6 +28,7 @@ async function callOpenRouter(systemPrompt: string, messages: any[]) {
         ...messages,
       ],
       response_format: { type: 'json_object' },
+      temperature: 1.3,
     }),
   });
 
@@ -64,6 +65,7 @@ async function callGroq(systemPrompt: string, messages: any[]) {
         ...messages,
       ],
       response_format: { type: 'json_object' },
+      temperature: 1.3,
     }),
   });
 
@@ -250,7 +252,7 @@ async function init() {
       return 'Seja OUSADO ao extremo: traga artistas de gêneros TOTALMENTE diferentes mas com "espírito" musical parecido. Misture eras, países, estilos, do mainstream ao underground. Foque em descoberta, não em familiaridade.';
     })();
 
-    const prompt = `Você é um curador musical experiente. Dado os artistas abaixo, retorne 3 artistas SIMILARES, EXCLUINDO os próprios listados.
+    const prompt = `Você é um curador musical experiente. Dado os artistas abaixo, retorne 5 artistas SIMILARES, EXCLUINDO os próprios listados.
 
 Artistas: ${artists.join(', ')}
 
@@ -258,7 +260,7 @@ NÍVEL DE AVENTURA: ${adventureLevel}/100
 INSTRUÇÃO DE CURADORIA: ${levelHint}
 
 Retorne APENAS JSON puro no formato:
-{"similar": ["Artista 1", "Artista 2", "Artista 3"]}`;
+{"similar": ["Artista 1", "Artista 2", "Artista 3", "Artista 4", "Artista 5"]}`;
 
     const extractSimilar = (raw: string | null | undefined): string[] => {
       if (!raw) return [];
@@ -280,13 +282,13 @@ Retorne APENAS JSON puro no formato:
       try {
         console.log('[RECS] tentando Groq...');
         const raw = await callGroq(
-          'Você é um curador musical. Retorne APENAS JSON no formato {"similar": ["Artista 1", "Artista 2", "Artista 3"]}. Sem texto extra.',
+          'Você é um curador musical. Retorne APENAS JSON no formato {"similar": ["Artista 1", "Artista 2", "Artista 3", "Artista 4", "Artista 5"]}. Sem texto extra.',
           [{ role: 'user', content: prompt }],
         );
         const similar = extractSimilar(raw);
         if (similar.length > 0) {
           console.log(`[RECS] Groq OK (nível ${adventureLevel}):`, similar);
-          return similar.slice(0, 3);
+          return similar.slice(0, 5);
         }
       } catch (e: any) {
         console.log('[RECS] Groq erro:', String(e?.message ?? e).slice(0, 150));
@@ -300,13 +302,13 @@ Retorne APENAS JSON puro no formato:
       try {
         console.log('[RECS] tentando OpenRouter...');
         const raw = await callOpenRouter(
-          'Você é um curador musical. Retorne APENAS JSON no formato {"similar": ["Artista 1", "Artista 2", "Artista 3"]}. Sem texto extra.',
+          'Você é um curador musical. Retorne APENAS JSON no formato {"similar": ["Artista 1", "Artista 2", "Artista 3", "Artista 4", "Artista 5"]}. Sem texto extra.',
           [{ role: 'user', content: prompt }],
         );
         const similar = extractSimilar(raw);
         if (similar.length > 0) {
           console.log(`[RECS] OpenRouter OK (nível ${adventureLevel}):`, similar);
-          return similar.slice(0, 3);
+          return similar.slice(0, 5);
         }
       } catch (e: any) {
         console.log('[RECS] OpenRouter erro:', String(e?.message ?? e).slice(0, 150));
@@ -326,7 +328,7 @@ Retorne APENAS JSON puro no formato:
       const similar = extractSimilar(response.text ?? null);
       if (similar.length > 0) {
         console.log(`[RECS] Gemini OK (nível ${adventureLevel}):`, similar);
-        return similar.slice(0, 3);
+        return similar.slice(0, 5);
       }
     } catch (e: any) {
       console.log('[RECS] Gemini falhou:', String(e?.message ?? e).slice(0, 120));
@@ -351,17 +353,29 @@ Retorne APENAS JSON puro no formato:
     // ─── 2. Monta queries ───
     const queries: string[] = [];
 
-    // 2 do próprio user (pra manter familiaridade)
+    // 1 do próprio user (pra manter familiaridade)
     if (artists.length > 0) {
       queries.push(...artists.slice(0, 1));
     }
 
-    // 3 similares (o pulo do gato — músicas NOVAS)
-    queries.push(...similarArtists.slice(0, 3));
+    // 4 similares (o pulo do gato — músicas NOVAS)
+    queries.push(...similarArtists.slice(0, 4));
 
-    // 1 gênero se tiver busca recente
+    // 1 busca recente — MAS só se parecer gênero musical
     if (genres.length > 0) {
-      queries.push(genres[0]);
+      const g = genres[0].toLowerCase().trim();
+      const musicKeywords = [
+        'funk', 'trap', 'rock', 'pop', 'rap', 'samba', 'mpb',
+        'pagode', 'sertanejo', 'eletrônica', 'eletronica', 'indie',
+        'metal', 'punk', 'jazz', 'blues', 'reggae', 'hip hop',
+        'hip-hop', 'lo-fi', 'lofi', 'k-pop', 'j-pop',
+      ];
+      const looksLikeGenre = musicKeywords.some((k) => g.includes(k));
+      if (looksLikeGenre) {
+        queries.push(g);
+      } else {
+        console.log('[RECS] busca recente ignorada (não é gênero):', g);
+      }
     }
 
     // Fallback genérico se ficou vazio
@@ -371,7 +385,7 @@ Retorne APENAS JSON puro no formato:
 
     console.log('[RECS] queries finais:', queries);
 
-    // ─── 3. Busca cada query EM PARALELO (com timeout individual) ───
+    // ─── 3. Busca cada query EM PARALELO ───
     const searchPromises = queries.map(async (q) => {
       try {
         const { stdout } = await execFileAsync(
@@ -407,11 +421,19 @@ Retorne APENAS JSON puro no formato:
     const results = await Promise.all(searchPromises);
     const allTracks: any[] = results.flat();
 
-    // ─── 4. Dedupe por ID ───
-    const seen = new Set<string>();
+    // ─── 4. Dedupe por ID E por título normalizado ───
+    const seenIds = new Set<string>();
+    const seenTitles = new Set<string>();
     const unique = allTracks.filter((t) => {
-      if (seen.has(t.id)) return false;
-      seen.add(t.id);
+      if (seenIds.has(t.id)) return false;
+      const normTitle = (t.title || '')
+        .toLowerCase()
+        .replace(/\(.*?\)|\[.*?\]/g, '')
+        .replace(/[^a-z0-9]/g, '')
+        .slice(0, 30);
+      if (normTitle && seenTitles.has(normTitle)) return false;
+      seenIds.add(t.id);
+      if (normTitle) seenTitles.add(normTitle);
       return true;
     });
 
