@@ -30,9 +30,24 @@ async function callOpenRouter(systemPrompt: string, messages: any[]) {
       response_format: { type: 'json_object' },
     }),
   });
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
-  const data = await res.json();
-  return data.choices[0].message.content;
+
+  const rawBody = await res.text();
+  if (!res.ok) {
+    throw new Error(`OpenRouter ${res.status}: ${rawBody.slice(0, 200)}`);
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(rawBody);
+  } catch {
+    throw new Error(`OpenRouter JSON inválido: ${rawBody.slice(0, 200)}`);
+  }
+
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error(`OpenRouter resposta inesperada: ${rawBody.slice(0, 200)}`);
+  }
+  return content;
 }
 
 async function callGroq(systemPrompt: string, messages: any[]) {
@@ -51,9 +66,24 @@ async function callGroq(systemPrompt: string, messages: any[]) {
       response_format: { type: 'json_object' },
     }),
   });
-  if (!res.ok) throw new Error(`Groq ${res.status}`);
-  const data = await res.json();
-  return data.choices[0].message.content;
+
+  const rawBody = await res.text();
+  if (!res.ok) {
+    throw new Error(`Groq ${res.status}: ${rawBody.slice(0, 200)}`);
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(rawBody);
+  } catch {
+    throw new Error(`Groq JSON inválido: ${rawBody.slice(0, 200)}`);
+  }
+
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error(`Groq resposta inesperada: ${rawBody.slice(0, 200)}`);
+  }
+  return content;
 }
 
 async function init() {
@@ -192,44 +222,131 @@ async function init() {
     return reply.redirect(url);
   });
 
-        // ─── IA: infere artistas similares ───
-  async function inferSimilarArtists(artists: string[]): Promise<string[]> {
+  // ─── IA: infere artistas similares (com nível de aventura) ───
+  async function inferSimilarArtists(
+    artists: string[],
+    adventureLevel: number = 50,
+  ): Promise<string[]> {
     if (artists.length === 0) return [];
 
-    const prompt = `Você é um curador musical experiente. Dado os artistas abaixo, retorne 3 artistas SIMILARES (mesmo gênero, movimento, vibe sonora), EXCLUINDO os próprios listados.
+    console.log(
+      '[RECS] keys → GEMINI:',
+      !!(process.env.GEMINI_API_KEY),
+      '| OPENROUTER:',
+      !!OPENROUTER_KEY,
+      '| GROQ:',
+      !!GROQ_KEY,
+    );
+
+    const levelHint = (() => {
+      if (adventureLevel <= 20)
+        return 'Fique MUITO próximo: mesmo gênero, mesma época, mesma vibe. Só artistas óbvios e diretos do mesmo nicho. Zero experimentação.';
+      if (adventureLevel <= 45)
+        return 'Fique próximo, com no máximo 1 aposta leve: mesmo gênero ou gêneros muito próximos. Sem saltos grandes.';
+      if (adventureLevel <= 65)
+        return 'Equilibrado: misture artistas próximos com alguns de gêneros adjacentes que compartilhem "alma" musical. Uma ou duas apostas médias.';
+      if (adventureLevel <= 85)
+        return 'Ouse: inclua artistas de gêneros DIFERENTES mas com energia/vibe similares. Cruze décadas, países e estilos. Surpreenda sem alienar.';
+      return 'Seja OUSADO ao extremo: traga artistas de gêneros TOTALMENTE diferentes mas com "espírito" musical parecido. Misture eras, países, estilos, do mainstream ao underground. Foque em descoberta, não em familiaridade.';
+    })();
+
+    const prompt = `Você é um curador musical experiente. Dado os artistas abaixo, retorne 3 artistas SIMILARES, EXCLUINDO os próprios listados.
 
 Artistas: ${artists.join(', ')}
 
+NÍVEL DE AVENTURA: ${adventureLevel}/100
+INSTRUÇÃO DE CURADORIA: ${levelHint}
+
 Retorne APENAS JSON puro no formato:
-{"similar": ["Artista 1", "Artista 2", "Artista 3"]}
+{"similar": ["Artista 1", "Artista 2", "Artista 3"]}`;
 
-Se não conhecer algum, use seu melhor julgamento pra achar do mesmo gênero.`;
+    const extractSimilar = (raw: string | null | undefined): string[] => {
+      if (!raw) return [];
+      try {
+        const cleaned = raw
+          .replace(/```json\s*/gi, '')
+          .replace(/```\s*/g, '')
+          .trim();
+        const parsed = JSON.parse(cleaned);
+        return Array.isArray(parsed.similar) ? parsed.similar : [];
+      } catch {
+        console.log('[RECS] falha ao parsear:', raw.slice(0, 150));
+        return [];
+      }
+    };
 
+    // ─── TENTATIVA 1: GROQ (mais rápido e estável) ───
+    if (GROQ_KEY) {
+      try {
+        console.log('[RECS] tentando Groq...');
+        const raw = await callGroq(
+          'Você é um curador musical. Retorne APENAS JSON no formato {"similar": ["Artista 1", "Artista 2", "Artista 3"]}. Sem texto extra.',
+          [{ role: 'user', content: prompt }],
+        );
+        const similar = extractSimilar(raw);
+        if (similar.length > 0) {
+          console.log(`[RECS] Groq OK (nível ${adventureLevel}):`, similar);
+          return similar.slice(0, 3);
+        }
+      } catch (e: any) {
+        console.log('[RECS] Groq erro:', String(e?.message ?? e).slice(0, 150));
+      }
+    } else {
+      console.log('[RECS] Groq key ausente — pulando');
+    }
+
+    // ─── TENTATIVA 2: OPENROUTER ───
+    if (OPENROUTER_KEY) {
+      try {
+        console.log('[RECS] tentando OpenRouter...');
+        const raw = await callOpenRouter(
+          'Você é um curador musical. Retorne APENAS JSON no formato {"similar": ["Artista 1", "Artista 2", "Artista 3"]}. Sem texto extra.',
+          [{ role: 'user', content: prompt }],
+        );
+        const similar = extractSimilar(raw);
+        if (similar.length > 0) {
+          console.log(`[RECS] OpenRouter OK (nível ${adventureLevel}):`, similar);
+          return similar.slice(0, 3);
+        }
+      } catch (e: any) {
+        console.log('[RECS] OpenRouter erro:', String(e?.message ?? e).slice(0, 150));
+      }
+    } else {
+      console.log('[RECS] OpenRouter key ausente — pulando');
+    }
+
+    // ─── TENTATIVA 3: GEMINI (último recurso, sem retry) ───
     try {
+      console.log('[RECS] tentando Gemini...');
       const response = await ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { responseMimeType: 'application/json' },
       });
-      const text = response.text ?? '{}';
-      const parsed = JSON.parse(text);
-      const similar = Array.isArray(parsed.similar) ? parsed.similar : [];
-      console.log('[RECS] IA sugeriu similares:', similar);
-      return similar.slice(0, 3);
+      const similar = extractSimilar(response.text ?? null);
+      if (similar.length > 0) {
+        console.log(`[RECS] Gemini OK (nível ${adventureLevel}):`, similar);
+        return similar.slice(0, 3);
+      }
     } catch (e: any) {
-      console.log('[RECS] IA falhou:', e?.message);
-      return [];
+      console.log('[RECS] Gemini falhou:', String(e?.message ?? e).slice(0, 120));
     }
+
+    console.log('[RECS] todos os provedores falharam');
+    return [];
   }
 
   app.post('/recommendations', async (req, reply) => {
-    const { artists = [], genres = [] } = req.body as {
+    const { artists = [], genres = [], adventureLevel = 50 } = req.body as {
       artists?: string[];
       genres?: string[];
+      adventureLevel?: number;
     };
 
+    console.log('[RECS] adventureLevel:', adventureLevel);
+
     // ─── 1. IA descobre artistas similares ───
-    const similarArtists = await inferSimilarArtists(artists);
+    const similarArtists = await inferSimilarArtists(artists, adventureLevel);
 
     // ─── 2. Monta queries ───
     const queries: string[] = [];
@@ -254,9 +371,8 @@ Se não conhecer algum, use seu melhor julgamento pra achar do mesmo gênero.`;
 
     console.log('[RECS] queries finais:', queries);
 
-    // ─── 3. Busca cada query ───
-    const allTracks: any[] = [];
-    for (const q of queries) {
+    // ─── 3. Busca cada query EM PARALELO (com timeout individual) ───
+    const searchPromises = queries.map(async (q) => {
       try {
         const { stdout } = await execFileAsync(
           'yt-dlp',
@@ -268,7 +384,7 @@ Se não conhecer algum, use seu melhor julgamento pra achar do mesmo gênero.`;
           ],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
         );
-        const tracks = stdout
+        return stdout
           .trim()
           .split('\n')
           .filter(Boolean)
@@ -282,11 +398,14 @@ Se não conhecer algum, use seu melhor julgamento pra achar do mesmo gênero.`;
               duration: d.duration ?? 0,
             };
           });
-        allTracks.push(...tracks);
       } catch (e: any) {
         console.error('[RECS] erro na query', q, ':', e?.message);
+        return [];
       }
-    }
+    });
+
+    const results = await Promise.all(searchPromises);
+    const allTracks: any[] = results.flat();
 
     // ─── 4. Dedupe por ID ───
     const seen = new Set<string>();
@@ -497,9 +616,7 @@ ${context?.title ? `\n\nCONTEXTO: o usuário está ouvindo "${context.title}" de
           lowerMsg.includes(t),
         );
 
-        // Também conta se tiver menos de 60 chars (nome de música direto)
         if (looksLikeMusicRequest || message.length < 60) {
-          // Limpa palavras de comando
           finalSearchQuery = message
             .replace(/^(toca|toque|pesquisa|busca|procura|me manda|me passa|acha|encontra|coloca|bota)\s+/i, '')
             .trim();
@@ -511,7 +628,6 @@ ${context?.title ? `\n\nCONTEXTO: o usuário está ouvindo "${context.title}" de
       if (finalSearchQuery) {
         tracks = await searchTracks(finalSearchQuery, 3);
 
-        // Se achou tracks, garante que o reply não é vazio/chato
         if (tracks.length > 0 && (!parsed.reply || parsed.reply.length < 15)) {
           parsed.reply = 'Achei umas boas, chefe. Escuta essas:';
         }
